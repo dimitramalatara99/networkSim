@@ -1,12 +1,15 @@
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-import simpy as sp
 
-# modeling space for the base staions and the UEs
+# modeling space for the base stations and the UEs
 array_size = 100
-num_timesteps = 100
+num_timesteps = 50
 # step_size = 0.02
+packet_size = 2048  # bits
+bandwidth = [100_000, 100_000, 100_000]
+traffics = []
+
 # coordinates for 3 stationary base stations
 bs_positions = np.array([[50, 80], [25, 30], [75, 30]])
 
@@ -37,27 +40,50 @@ def choose_connection(bs_positions, ue_positions):
     return connections
 
 
-# UEs movement randomly by 1 step
+#UEs movement randomly by X step
 
 def move_ues(ue_positions, array_size):
     for i in range(len(ue_positions)):
         # ue can move 1 step in 4 directions(up,right,down,left)
-        ue_positions[i] += np.random.randint(-10, 10)
+        ue_positions[i] += np.random.randint(-10, 10, size=2)
         # ues move only inside the aray
         ue_positions[i] = np.clip(ue_positions[i], 1, array_size - 1)
     return ue_positions
 
 
-# SIMULATION
-def simulation(bs_positions, ue_positions, connections, timestep, plt):
-    # BS positions in purple
+def data_traffic(num_ues, packet_size):
+    # poisson distribution
+    packets_per_ue = np.random.poisson(5, num_ues)
+    traffics.append(packets_per_ue*packet_size)
+    return packets_per_ue * packet_size
+
+
+def allocate_bandwidth(bs_positions, ue_positions, connections, bandwidth):
+    # count how many ues are connected to a BS in a single timestep
+    ue_count = [0] * len(bs_positions)
+    for connection in connections:
+        ue_count[connection] += 1
+
+    ue_bandwith = []  # how much bandwidth is allocated to each ue
+    for i, bs_index in enumerate(connections):
+        if ue_count[bs_index] > 0:
+            bandwidth_per_ue = bandwidth[bs_index] / ue_count[bs_index]
+        else:
+            bandwidth_per_ue = 0  # this bs has no connections to ues
+        ue_bandwith.append(bandwidth_per_ue)
+    return ue_bandwith, ue_count
+
+
+# PLOT
+def simulation(bs_positions, ue_positions, connections, traffic, timestep, plt):
+    # Plot BS positions in purple
     plt.rcParams["figure.figsize"] = [8, 8]
     plt.scatter(bs_positions[:, 0], bs_positions[:, 1], c='purple', label='Base Station')
 
     for i, (x, y) in enumerate(bs_positions):
         # offset to the right
         plt.text(x + 1, y, f"BS-{i}", color='green', fontsize=9)
-    # UEs positions in blue
+    # Plot UEs positions in blue
     plt.scatter(ue_positions[:, 0], ue_positions[:, 1], c='blue', label='User Equipment')
     for i, (x, y) in enumerate(ue_positions):
         plt.text(x + 1, y, f"UE-{i}", color='black', fontsize=9)
@@ -79,7 +105,8 @@ def simulation(bs_positions, ue_positions, connections, timestep, plt):
     plt.clf()
 
 
-def simulate_movement(bs_positions, ue_positions, num_timesteps, array_size):
+# simulate movement and traffic generation
+def simulate_movement(bs_positions, ue_positions, num_timesteps, array_size, packet_size):
     plt.figure(figsize=(8, 8))
 
     for timestep in range(num_timesteps):
@@ -90,9 +117,15 @@ def simulate_movement(bs_positions, ue_positions, num_timesteps, array_size):
 
         connections = choose_connection(bs_positions, ue_positions)
 
+        traffic = data_traffic(num_ues, packet_size)
+        print(f"Traffic data (bits) at timestep {timestep + 1}: {traffic}")
+
+        ue_bandwidth, ue_count = allocate_bandwidth(bs_positions, ue_positions, connections, bandwidth)
+        print (f"Bandwidth(bits/sec) of ues at timestep{timestep + 1}: {ue_bandwidth}")
+
         # call simulation function for each new timestep
-        simulation(bs_positions, ue_positions, connections, timestep + 1, plt)
-        # time.sleep(1)
+        simulation(bs_positions, ue_positions, connections, traffic, timestep + 1, plt)
+
 
 
 # def simulate(bs_positions, ue_positions):
@@ -102,9 +135,9 @@ def simulate_movement(bs_positions, ue_positions, num_timesteps, array_size):
 
 if __name__ == '__main__':
     ue_positions = initialize_ues(num_ues, array_size)
-    connections = choose_connection(bs_positions, ue_positions)
-    simulate_movement(bs_positions, ue_positions, num_timesteps, array_size)
+    #connections = choose_connection(bs_positions, ue_positions)
+    simulate_movement(bs_positions, ue_positions, num_timesteps, array_size, packet_size)
 
-print("bs positions: ", bs_positions)
-print("ue positions: ", ue_positions)
-print("Best connection for each UE:", connections)
+    print("bs positions: ", bs_positions)
+    print("ue positions: ", ue_positions)
+    print("Best connection for each UE:", connections)
