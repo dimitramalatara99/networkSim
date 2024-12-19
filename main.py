@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 array_size = 100
 num_timesteps = 50
 # step_size = 0.02
-packet_size = 2048  # bits
-bandwidth = [100_000, 100_000, 100_000]
+packet_size = 16384  # bits
+bandwidth = [50_000, 50_000, 50_000]
 traffics = []
 
 # coordinates for 3 stationary base stations
@@ -64,7 +64,8 @@ def allocate_bandwidth(bs_positions, ue_positions, connections, bandwidth):
     for connection in connections:
         ue_count[connection] += 1
 
-    ue_bandwith = []  # how much bandwidth is allocated to each ue
+    ue_bandwith = [] # how much bandwidth is allocated to each ue
+
     for i, bs_index in enumerate(connections):
         if ue_count[bs_index] > 0:
             bandwidth_per_ue = bandwidth[bs_index] / ue_count[bs_index]
@@ -72,6 +73,17 @@ def allocate_bandwidth(bs_positions, ue_positions, connections, bandwidth):
             bandwidth_per_ue = 0  # this bs has no connections to ues
         ue_bandwith.append(bandwidth_per_ue)
     return ue_bandwith, ue_count
+
+def log_packet_loss(connections, ue_bandwidth, packet_size):
+    packet_loss = []
+    for i, bandwidth_per_ue in enumerate(ue_bandwidth):
+        traffic = packet_size
+        if traffic > bandwidth_per_ue:
+            loss = traffic - bandwidth_per_ue
+        else:
+            loss = 0
+        packet_loss.append(loss)
+    return packet_loss
 
 
 # PLOT
@@ -108,6 +120,8 @@ def simulation(bs_positions, ue_positions, connections, traffic, timestep, plt):
 # simulate movement and traffic generation
 def simulate_movement(bs_positions, ue_positions, num_timesteps, array_size, packet_size):
     plt.figure(figsize=(8, 8))
+    total_packet_loss = 0
+    packet_loss_over_time = []
 
     for timestep in range(num_timesteps):
         print(f"Timestep {timestep + 1}/{num_timesteps}")
@@ -120,8 +134,17 @@ def simulate_movement(bs_positions, ue_positions, num_timesteps, array_size, pac
         traffic = data_traffic(num_ues, packet_size)
         print(f"Traffic data (bits) at timestep {timestep + 1}: {traffic}")
 
+        #divide bandwidth
         ue_bandwidth, ue_count = allocate_bandwidth(bs_positions, ue_positions, connections, bandwidth)
         print (f"Bandwidth(bits/sec) of ues at timestep{timestep + 1}: {ue_bandwidth}")
+
+        #log packet loss
+        packet_loss = log_packet_loss(connections, ue_bandwidth, packet_size)
+        total_packet_loss += sum(packet_loss)
+        packet_loss_over_time.append(sum(packet_loss))
+        print(f"Packet loss at timestep {timestep + 1}: {packet_loss}")
+        print(f"Total packet loss so far: {total_packet_loss}")
+
 
         # call simulation function for each new timestep
         simulation(bs_positions, ue_positions, connections, traffic, timestep + 1, plt)
@@ -140,4 +163,4 @@ if __name__ == '__main__':
 
     print("bs positions: ", bs_positions)
     print("ue positions: ", ue_positions)
-    print("Best connection for each UE:", connections)
+    print("best connection for each UE:", connections)
